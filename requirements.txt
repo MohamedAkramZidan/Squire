@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+onnxruntime
+transformers==5.0.0 
+tokenizers==0.22.2 
+sentencepiece
+pydantic>=2.5
+pydantic-settings
