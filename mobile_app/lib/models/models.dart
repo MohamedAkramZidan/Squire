@@ -1,5 +1,7 @@
 // lib/models/models.dart
+// UPDATED: addChatMessage now calls the real Squire backend
 import 'package:flutter/material.dart';
+import 'package:alexandria/services/squire_api.dart';
 
 enum EventType { meeting, deadline, research, task }
 
@@ -101,16 +103,14 @@ class Meeting {
       required this.location});
 }
 
-// Shared state / mock data
+// ── Shared state ────────────────────────────────────────────────────────────────
 
 class AppState extends ChangeNotifier {
   DateTime selectedDay = DateTime.now();
-  int navIndex = 0; // calendar tab active by default
+  int navIndex = 0;
 
-  // ── Calendar events ──────────────────────────────────────────────────────────
   late List<CalendarEvent> events;
 
-  // ── Deadlines ─────────────────────────────────────────────────────────────────
   final List<Deadline> deadlines = [
     Deadline(
       title: 'Manuscript Final Review',
@@ -136,7 +136,6 @@ class AppState extends ChangeNotifier {
     ),
   ];
 
-  // ── AI tasks ─────────────────────────────────────────────────────────────────
   final List<AiTask> researchTasks = [
     AiTask(label: 'Analyze 14th century cartography notes'),
     AiTask(label: 'Cross-reference bibliography with JSTOR'),
@@ -147,10 +146,8 @@ class AppState extends ChangeNotifier {
     AiTask(label: 'Update membership for Library of Congress'),
   ];
 
-  // ── Meetings ─────────────────────────────────────────────────────────────────
   late List<Meeting> meetings;
 
-  // ── Chat ─────────────────────────────────────────────────────────────────────
   List<ChatMessage> chatMessages = [
     ChatMessage(
       id: '1',
@@ -264,7 +261,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addChatMessage(String text) {
+  // ── UPDATED: calls real backend ─────────────────────────────────────────────
+
+  Future<void> addChatMessage(String text) async {
+    // 1. Add user message immediately
     chatMessages.add(ChatMessage(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       text: text,
@@ -272,16 +272,170 @@ class AppState extends ChangeNotifier {
       time: DateTime.now(),
     ));
     notifyListeners();
-    // Simulate AI response
-    Future.delayed(const Duration(milliseconds: 800), () {
+
+    // 2. Show thinking placeholder
+    final thinkingId = '${DateTime.now().millisecondsSinceEpoch}_thinking';
+    chatMessages.add(ChatMessage(
+      id: thinkingId,
+      text: 'Thinking...',
+      isUser: false,
+      time: DateTime.now(),
+    ));
+    notifyListeners();
+
+    try {
+      // 3. Call the real backend
+      final data = await SquireApi.predict(text);
+
+      final result = data['result'] as Map<String, dynamic>;
+      final decision = data['decision'] as Map<String, dynamic>;
+
+      final action = result['action'] as String? ?? 'unknown';
+      final obj = result['object'] as String? ?? 'unknown';
+      final entities = result['entities'] as List<dynamic>? ?? [];
+
+      // 4. Build human-readable reply
+      final decisionType = decision['decision'] as String? ?? 'EXECUTE';
+      final replyText = _buildReply(action, obj, entities, decisionType, decision);
+
+      // 5. Build reminder card — only for ADD MEETING or ADD TASK
+      ReminderCard? reminder;
+      if (action == 'ADD' && decisionType == 'EXECUTE') {
+        final dateEntity = entities.firstWhere(
+          (e) => e['type'] == 'DATE' || e['type'] == 'TIME',
+          orElse: () => null,
+        );
+        reminder = ReminderCard(
+          label: obj == 'MEETING' ? 'MEETING ADDED' : 'TASK ADDED',
+          detail: dateEntity != null
+              ? '$obj — ${dateEntity['value']}'
+              : 'Added to your schedule',
+        );
+      }
+
+      // 6. Replace thinking with real reply
+      chatMessages.removeWhere((m) => m.id == thinkingId);
       chatMessages.add(ChatMessage(
         id: '${DateTime.now().millisecondsSinceEpoch}r',
+        text: replyText,
+        isUser: false,
+        time: DateTime.now(),
+        reminder: reminder,
+      ));
+    } catch (e) {
+      // 7. Show friendly error on failure
+      chatMessages.removeWhere((m) => m.id == thinkingId);
+      chatMessages.add(ChatMessage(
+        id: '${DateTime.now().millisecondsSinceEpoch}err',
         text:
-            "I've noted that. I'll update your schedule and set a reminder accordingly.",
+            'Sorry, I could not reach the server. Make sure the backend is running on port 8000.',
         isUser: false,
         time: DateTime.now(),
       ));
-      notifyListeners();
-    });
+    }
+
+    notifyListeners();
+  }
+
+  /// Converts NLU output into a readable AI reply sentence.
+  String _buildReply(
+    String action,
+    String obj,
+    List<dynamic> entities,
+    String decisionType,
+    Map<String, dynamic> decision,
+  ) {
+    // If backend is not confident — ask user to rephrase
+    if (decisionType == 'REJECT') {
+      return "I didn't quite understand that. Could you rephrase?";
+    }
+
+    // If backend needs more info — show its clarifying questions
+    if (decisionType == 'CLARIFY') {
+      final questions = decision['questions'] as List<dynamic>? ?? [];
+      final q = questions.isNotEmpty ? questions.first as String : 'Could you give me more details?';
+      return q;
+    }
+
+    // Extract useful entities
+    final dateEntity = entities.firstWhere(
+      (e) => e['type'] == 'DATE' || e['type'] == 'TIME',
+      orElse: () => null,
+    );
+    final titleEntity = entities.firstWhere(
+      (e) => e['type'] == 'TITLE',
+      orElse: () => null,
+    );
+    final personEntity = entities.firstWhere(
+      (e) => e['type'] == 'PERSON',
+      orElse: () => null,
+    );
+
+    final timeStr    = dateEntity?['value']  as String? ?? '';
+    final title      = titleEntity?['value'] as String? ?? '';
+    final person     = personEntity?['value'] as String? ?? '';
+
+    // action = ADD | GET | UPDATE | DELETE
+    // obj    = TASK | MEETING | PROGRESS | NOTE
+    switch ('$action:$obj') {
+      case 'ADD:TASK':
+        return timeStr.isNotEmpty
+            ? "I've added the task [${title.isNotEmpty ? title : 'new task'}] due [$timeStr]."
+            : "I've added [${title.isNotEmpty ? title : 'new task'}] to your tasks.";
+
+      case 'ADD:MEETING':
+        return timeStr.isNotEmpty
+            ? "I've scheduled a [MEETING]${person.isNotEmpty ? ' with [$person]' : ''} on [$timeStr]."
+            : "I've added a [MEETING]${person.isNotEmpty ? ' with [$person]' : ''} to your calendar.";
+
+      case 'ADD:NOTE':
+        return "I've saved your [NOTE]${title.isNotEmpty ? ': [$title]' : ''}.";
+
+      case 'ADD:PROGRESS':
+        return "I've logged your [PROGRESS] update.";
+
+      case 'GET:TASK':
+        return timeStr.isNotEmpty
+            ? "Here are your [TASKS] for [$timeStr]."
+            : "Here are your [TASKS].";
+
+      case 'GET:MEETING':
+        return timeStr.isNotEmpty
+            ? "Here are your [MEETINGS] for [$timeStr]."
+            : "Here are your upcoming [MEETINGS].";
+
+      case 'GET:NOTE':
+        return "Here are your [NOTES]${title.isNotEmpty ? ' about [$title]' : ''}.";
+
+      case 'GET:PROGRESS':
+        return "Here is your [PROGRESS] summary.";
+
+      case 'UPDATE:TASK':
+        return "I've updated the [TASK]${title.isNotEmpty ? ' [$title]' : ''}.";
+
+      case 'UPDATE:MEETING':
+        return "I've updated your [MEETING]${timeStr.isNotEmpty ? ' to [$timeStr]' : ''}.";
+
+      case 'UPDATE:NOTE':
+        return "I've updated your [NOTE].";
+
+      case 'UPDATE:PROGRESS':
+        return "I've updated your [PROGRESS].";
+
+      case 'DELETE:TASK':
+        return "I've removed the [TASK]${title.isNotEmpty ? ' [$title]' : ''}.";
+
+      case 'DELETE:MEETING':
+        return "I've cancelled the [MEETING]${timeStr.isNotEmpty ? ' on [$timeStr]' : ''}.";
+
+      case 'DELETE:NOTE':
+        return "I've deleted your [NOTE].";
+
+      case 'DELETE:PROGRESS':
+        return "I've cleared that [PROGRESS] entry.";
+
+      default:
+        return "Got it. I've processed your [$obj] request.";
+    }
   }
 }
