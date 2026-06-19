@@ -1,36 +1,24 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from services.decide import decide
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import services.nlu as nlu
-from postprocess import process
+from api import routes
 from config.settings import settings
-from schemas.request import CommandRequest
+from database import init_db
 
-app = FastAPI(title="Squire NLU")
+app = FastAPI(title="Squire")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.on_event("startup")
 def startup():
+    if settings.create_tables_on_startup:
+        init_db()
     nlu.load(settings.model_path)
 
-@app.post("/predict")
-def predict(req: CommandRequest):
-    if not req.text.strip():
-        raise HTTPException(400, "text is empty")
-    raw    = nlu.predict(req.text)
-    result = process(raw)
-    decision = decide(result)
-    return {"result": result, "decision": decision}
-
-@app.post("/debug/raw")
-def debug_raw(req: CommandRequest):
-    if not req.text.strip():
-        raise HTTPException(400, "text is empty")
-    return nlu.predict(req.text)
-
-@app.get("/debug/model")
-def debug_model():
-    return nlu.debug_info()
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+app.include_router(routes.router)
