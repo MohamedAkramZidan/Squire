@@ -1,12 +1,15 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 import services.nlu as nlu
 
+from database import get_db
 from schemas.request import CommandRequest
 from schemas.response import PredictResponse
 
 from postprocess import process
 from services.decide import decide
+from services.executor import execute_intent
 
 router = APIRouter()
 
@@ -15,7 +18,7 @@ router = APIRouter()
     "/predict",
     response_model=PredictResponse
 )
-def predict(req: CommandRequest):
+def predict(req: CommandRequest, db: Session = Depends(get_db)):
 
     if not req.text.strip():
         raise HTTPException(
@@ -26,12 +29,18 @@ def predict(req: CommandRequest):
     raw = nlu.predict(req.text)
 
     result = process(raw)
+    result["text"] = req.text
 
     decision = decide(result)
+    execution = None
+
+    if decision.get("decision") == "EXECUTE":
+        execution = execute_intent(db, result, req.user_id)
 
     return {
         "result": result,
-        "decision": decision
+        "decision": decision,
+        "execution": execution,
     }
 
 
