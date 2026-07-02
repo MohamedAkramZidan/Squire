@@ -1,4 +1,5 @@
 import enum
+import json
 from datetime import date, datetime, time
 
 from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, String, Text, Time, func
@@ -16,6 +17,29 @@ class Vector(UserDefinedType):
 
     def get_col_spec(self, **kw) -> str:
         return f"VECTOR({self.dimensions})"
+
+    def bind_processor(self, dialect):
+        def process(value):
+            if value is None:
+                return None
+            if isinstance(value, str):
+                return value
+            return "[" + ",".join(str(float(item)) for item in value) + "]"
+
+        return process
+
+    def result_processor(self, dialect, coltype):
+        def process(value):
+            if value is None or isinstance(value, list):
+                return value
+            if isinstance(value, str):
+                try:
+                    return [float(item) for item in json.loads(value)]
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    return None
+            return value
+
+        return process
 
 
 class TaskStatus(str, enum.Enum):
@@ -80,8 +104,8 @@ class Task(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     title: Mapped[str] = mapped_column(String(50), nullable=False)
-    task_date: Mapped[date] = mapped_column(Date, nullable=False)
-    task_time: Mapped[time] = mapped_column(Time, nullable=False)
+    task_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    task_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     status: Mapped[TaskStatus] = mapped_column(
         Enum(TaskStatus, name="task_status"),
         default=TaskStatus.pending,
@@ -103,7 +127,7 @@ class Meeting(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     title: Mapped[str] = mapped_column(String(50), nullable=False)
     meeting_date: Mapped[date] = mapped_column(Date, nullable=False)
-    meeting_time: Mapped[time] = mapped_column(Time, nullable=False)
+    meeting_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     status: Mapped[MeetingStatus] = mapped_column(
         Enum(MeetingStatus, name="meeting_status"),
         default=MeetingStatus.scheduled,
@@ -127,6 +151,7 @@ class Note(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     title: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(384), nullable=True)
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
