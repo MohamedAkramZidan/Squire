@@ -1,0 +1,6 @@
+I need to know the answer to this question: {question}
+
+Here is the only information you can use:
+{documents}
+
+Please tell me the answer directly without repeating the question or the notes.

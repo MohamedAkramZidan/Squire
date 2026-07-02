@@ -1,0 +1,6 @@
+Summarize the following progress records in one short, natural sentence. Speak directly to the user.
+
+[Progress Records]
+{records}
+
+Direct Summary:
