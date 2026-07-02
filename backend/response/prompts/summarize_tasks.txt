@@ -1,0 +1,6 @@
+Summarize the following items for the user in one short, natural sentence. Speak directly to the user.
+
+[Items]
+{tasks}
+
+Direct Summary:
