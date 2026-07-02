@@ -7,8 +7,8 @@ from database.models import TaskStatus
 
 class TaskBase(BaseModel):
     title: str
-    task_date: date
-    task_time: time
+    task_date: date | None = None
+    task_time: time | None = None
     status: TaskStatus = TaskStatus.pending
     user_id: int
 

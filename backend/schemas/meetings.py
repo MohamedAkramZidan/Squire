@@ -8,7 +8,7 @@ from database.models import MeetingStatus
 class MeetingBase(BaseModel):
     title: str
     meeting_date: date
-    meeting_time: time
+    meeting_time: time | None = None
     status: MeetingStatus = MeetingStatus.scheduled
     person: str | None = None
     location: str | None = None
