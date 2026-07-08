@@ -7,7 +7,7 @@ An **n8n** workflow that automates task and meeting scheduling by integrating wi
 ## Workflow Overview
 
 <p align="center">
-  <img src="./images/workflow-overview.png" alt="Workflow Overview" width="900">
+  <img src="./workflow-overview.png" alt="Workflow Overview" width="900">
 </p>
 
 ---
