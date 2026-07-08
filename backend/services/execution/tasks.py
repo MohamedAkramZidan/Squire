@@ -4,7 +4,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from database.crud.tasks import task as task_crud
-from database.models import Task
+from database.models import Task, User
 from schemas.tasks import TaskCreate, TaskUpdate
 
 from .helpers import (
@@ -22,6 +22,7 @@ from .helpers import (
     search_fields_for_update,
     serialize,
 )
+from .webhook import trigger_task_webhook
 
 DATE_FIELD = "task_date"
 TIME_FIELD = "task_time"
@@ -46,7 +47,7 @@ def _add(db: Session, fields: dict, user_id: int, processed: dict) -> dict:
         "user_id": user_id,
         "title": title,
         "task_date": parse_date(fields.get("DATE")) or date.today(),
-        "task_time": parse_time(fields.get("TIME")) or time(23, 59),
+        "task_time": parse_time(fields.get("TIME")) or time(12, 0),
         "status": clean_status(fields.get("STATUS"), "TASK"),
     }
     data = {k: v for k, v in data.items() if v is not None}
@@ -62,6 +63,16 @@ def _add(db: Session, fields: dict, user_id: int, processed: dict) -> dict:
         return not_executed(f"invalid create payload: {exc.errors()}")
 
     created = task_crud.create(db, payload)
+
+    if created.task_date and created.task_time:
+        user = db.get(User, user_id)
+        email = user.email if user else "moakramzidan@gmail.com"
+        trigger_task_webhook(
+            task_name=created.title, 
+            deadline_date=created.task_date.isoformat(), 
+            deadline_time=created.task_time.isoformat(), 
+            email=email
+        )
 
     if embedding is not None:
         created.embedding = embedding
