@@ -32,16 +32,12 @@ def predict(req: CommandRequest, db: Session = Depends(get_db)):
 
     result = process(raw)
 
-    # Pass user_id to the Decision Engine so it can check/manage Redis state
     decision = decide(result, user_id=req.user_id)
     execution = None
 
     if decision.get("decision") == "EXECUTE":
-        # Use the merged data from the decision (may contain merged fields from Redis)
         execute_data = decision.get("data", result)
         execution = execute_intent(db, execute_data, req.user_id)
-        
-        # ── Handle Execution CLARIFY (Target Selection / Missing Fields) ──
         if execution and execution.get("status") == "CLARIFY":
             from services.state_manager import save_session
             session = {
@@ -60,7 +56,6 @@ def predict(req: CommandRequest, db: Session = Depends(get_db)):
             
             save_session(req.user_id, session)
 
-    # ── Response Layer ────────────────────────────────────────────────────
     response_text = generate_response(
         decision=decision,
         execution=execution,
@@ -95,9 +90,6 @@ def debug_model():
 @router.get("/health")
 def health():
     return {"status": "ok"}
-
-
-# ── UI Data Endpoints ────────────────────────────────────────────────────────
 
 from database.models import Task, Meeting, Note, Progress
 

@@ -16,5 +16,8 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://localhost:6379/0"
     redis_session_ttl: int = 300  # seconds (5 minutes)
+    
+    # n8n
+    n8n_webhook_url: str = "http://localhost:5678/webhook"
 
 settings = Settings()
