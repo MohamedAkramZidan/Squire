@@ -65,9 +65,8 @@ An **n8n** workflow that automates task and meeting scheduling by integrating wi
 automation/
 │
 ├── README.md
-├── task-meeting-automation.json
-└── images/
-    └── workflow-overview.png
+├── calendar-reminder-workflow.json
+└── workflow-overview.png
 ```
 ---
 
