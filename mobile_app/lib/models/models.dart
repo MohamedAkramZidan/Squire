@@ -109,132 +109,118 @@ class AppState extends ChangeNotifier {
   DateTime selectedDay = DateTime.now();
   int navIndex = 0;
 
-  late List<CalendarEvent> events;
+  /// The current user's ID — used for all backend calls.
+  /// Change this to the actual logged-in user's ID once auth is wired up.
+  int userId = 1;
 
-  final List<Deadline> deadlines = [
-    Deadline(
-      title: 'Manuscript Final Review',
-      section: 'Section: Theoretical Physics Anthology',
-      dueLabel: 'Today, 5:00 PM',
-      isToday: true,
-      priority: Priority.high,
-      category: 'HIGH PRIORITY',
-    ),
-    Deadline(
-      title: 'Grant Application Submission',
-      section: 'Digital Humanities Fund',
-      dueLabel: 'Oct 26',
-      priority: Priority.medium,
-      category: 'INSTITUTIONAL',
-    ),
-    Deadline(
-      title: 'Archive Digitization Sync',
-      section: 'Personal Records — Folder 14',
-      dueLabel: 'Oct 29',
-      priority: Priority.low,
-      category: 'MAINTENANCE',
-    ),
-  ];
-
-  final List<AiTask> researchTasks = [
-    AiTask(label: 'Analyze 14th century cartography notes'),
-    AiTask(label: 'Cross-reference bibliography with JSTOR'),
-  ];
-
-  final List<AiTask> curationTasks = [
-    AiTask(label: 'Backup weekly manuscript drafts', completed: true),
-    AiTask(label: 'Update membership for Library of Congress'),
-  ];
-
-  late List<Meeting> meetings;
-
-  List<ChatMessage> chatMessages = [
-    ChatMessage(
-      id: '1',
-      text: 'I have a deadline to hand in Sheet 2 next Monday.',
-      isUser: true,
-      time: DateTime.now().subtract(const Duration(minutes: 5)),
-    ),
-    ChatMessage(
-      id: '2',
-      text:
-          "Of course. I've recorded the deadline for Sheet 2 on Monday, October 30th.",
-      isUser: false,
-      time: DateTime.now(),
-      reminder: ReminderCard(
-        label: 'REMINDER SET',
-        detail: 'Monday, 9:00 AM — Hand in Sheet 2',
-      ),
-      quickActions: [
-        QuickAction(icon: '📜', label: 'Review research for Sheet 2'),
-        QuickAction(icon: '✅', label: 'Add sub-tasks'),
-      ],
-    ),
-  ];
+  List<CalendarEvent> events = [];
+  List<Deadline> deadlines = [];
+  List<AiTask> researchTasks = [];
+  List<AiTask> curationTasks = [];
+  List<Meeting> meetings = [];
+  List<ChatMessage> chatMessages = [];
+  bool isLoading = true;
 
   AppState() {
-    final now = DateTime.now();
-    events = [
-      CalendarEvent(
-        id: '1',
-        title: 'Editorial Board Review',
-        description:
-            'Quarterly review of upcoming manuscripts and archival digitization priorities for the winter release.',
-        date: now,
-        startTime: const TimeOfDay(hour: 9, minute: 30),
-        endTime: const TimeOfDay(hour: 10, minute: 45),
-        type: EventType.meeting,
-        location: 'LIBRARY WING B',
-        attendees: ['A', 'B', '+4'],
-      ),
-      CalendarEvent(
-        id: '2',
-        title: 'Manuscript: The Golden Bough (V3)',
-        date: now,
-        type: EventType.deadline,
-        priority: Priority.high,
-        dueLabel: '12:00 PM',
-        isAllDay: false,
-      ),
-      CalendarEvent(
-        id: '3',
-        title: 'Deep Work: Comparative Mythology',
-        date: now,
-        startTime: const TimeOfDay(hour: 14, minute: 0),
-        endTime: const TimeOfDay(hour: 16, minute: 30),
-        type: EventType.research,
-      ),
-      CalendarEvent(
-        id: '4',
-        title: 'Philosophical Inquiry',
-        date: now.add(const Duration(days: 1)),
-        startTime: const TimeOfDay(hour: 14, minute: 0),
-        type: EventType.meeting,
-        location: 'Virtual Hall',
-      ),
-      CalendarEvent(
-        id: '5',
-        title: 'Team Sync',
-        date: now.add(const Duration(days: 3)),
-        startTime: const TimeOfDay(hour: 10, minute: 0),
-        type: EventType.meeting,
-      ),
-    ];
+    fetchInitialData();
+  }
 
-    meetings = [
-      Meeting(
-        date: now.add(const Duration(days: 1)),
-        title: 'Philosophical Inquiry',
-        time: '14:00',
-        location: 'Virtual Hall',
-      ),
-      Meeting(
-        date: now.add(const Duration(days: 2)),
-        title: 'Metadata Standards Review',
-        time: '10:30',
-        location: 'Faculty Lounge',
-      ),
-    ];
+  Future<void> fetchInitialData() async {
+    isLoading = true;
+    notifyListeners();
+
+    try {
+      final tasksData = await SquireApi.getTasks(userId);
+      final meetingsData = await SquireApi.getMeetings(userId);
+      
+      events = [];
+      researchTasks = [];
+      
+      for (final t in tasksData) {
+        final id = t['id'].toString();
+        final title = t['title'] as String? ?? 'Untitled';
+        final tDate = t['task_date'] as String?;
+        final tTime = t['task_time'] as String?;
+        final status = t['status'] as String? ?? 'pending';
+        
+        if (tDate != null) {
+          final dateObj = DateTime.tryParse(tDate) ?? DateTime.now();
+          TimeOfDay? start;
+          if (tTime != null) {
+            final parts = tTime.split(':');
+            if (parts.length >= 2) {
+              start = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+            }
+          }
+          events.add(CalendarEvent(
+            id: id,
+            title: title,
+            date: dateObj,
+            startTime: start,
+            type: EventType.task,
+          ));
+        } else {
+          researchTasks.add(AiTask(label: title, completed: status == 'completed'));
+        }
+      }
+
+      meetings = [];
+      for (final m in meetingsData) {
+        final id = m['id'].toString();
+        final title = m['title'] as String? ?? 'Untitled';
+        final mDate = m['meeting_date'] as String?;
+        final mTime = m['meeting_time'] as String?;
+        final location = m['location'] as String? ?? '';
+        final person = m['person'] as String? ?? '';
+        
+        final dateObj = mDate != null ? (DateTime.tryParse(mDate) ?? DateTime.now()) : DateTime.now();
+        TimeOfDay? start;
+        String timeStr = 'TBD';
+        if (mTime != null) {
+          final parts = mTime.split(':');
+          if (parts.length >= 2) {
+            start = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+            timeStr = mTime.substring(0, 5);
+          }
+        }
+        
+        meetings.add(Meeting(
+          date: dateObj,
+          title: title,
+          time: timeStr,
+          location: location.isEmpty && person.isNotEmpty ? 'With $person' : location,
+        ));
+        
+        events.add(CalendarEvent(
+          id: id,
+          title: title,
+          date: dateObj,
+          startTime: start,
+          type: EventType.meeting,
+          location: location.isEmpty && person.isNotEmpty ? 'With $person' : location,
+        ));
+      }
+
+      deadlines = []; 
+      curationTasks = [];
+
+      if (chatMessages.isEmpty) {
+        chatMessages = [
+          ChatMessage(
+            id: 'welcome',
+            text: 'Hello! I am connected to the backend. How can I help you?',
+            isUser: false,
+            time: DateTime.now(),
+          )
+        ];
+      }
+
+    } catch (e) {
+      print('Error fetching data: $e');
+    }
+
+    isLoading = false;
+    notifyListeners();
   }
 
   void setSelectedDay(DateTime day) {
@@ -285,32 +271,25 @@ class AppState extends ChangeNotifier {
 
     try {
       // 3. Call the real backend
-      final data = await SquireApi.predict(text);
+      final data = await SquireApi.predict(text, userId: userId);
 
-      final result = data['result'] as Map<String, dynamic>;
-      final decision = data['decision'] as Map<String, dynamic>;
+      // Get the natural language response generated by the Response Layer
+      final replyText = data['response'] as String? ?? 'I processed your request.';
 
-      final action = result['action'] as String? ?? 'unknown';
-      final obj = result['object'] as String? ?? 'unknown';
-      final entities = result['entities'] as List<dynamic>? ?? [];
-
-      // 4. Build human-readable reply
-      final decisionType = decision['decision'] as String? ?? 'EXECUTE';
-      final replyText = _buildReply(action, obj, entities, decisionType, decision);
-
-      // 5. Build reminder card — only for ADD MEETING or ADD TASK
+      final result = data['result'] as Map<String, dynamic>?;
+      final execution = data['execution'] as Map<String, dynamic>?;
+      
       ReminderCard? reminder;
-      if (action == 'ADD' && decisionType == 'EXECUTE') {
-        final dateEntity = entities.firstWhere(
-          (e) => e['type'] == 'DATE' || e['type'] == 'TIME',
-          orElse: () => null,
-        );
-        reminder = ReminderCard(
-          label: obj == 'MEETING' ? 'MEETING ADDED' : 'TASK ADDED',
-          detail: dateEntity != null
-              ? '$obj — ${dateEntity['value']}'
-              : 'Added to your schedule',
-        );
+      if (execution != null && execution['status'] == 'EXECUTED') {
+        if (result != null && result['action'] == 'ADD') {
+          final obj = result['object'] as String? ?? 'ITEM';
+          reminder = ReminderCard(
+            label: '$obj ADDED',
+            detail: 'Added to your schedule',
+          );
+        }
+        // Auto-refresh the UI data in the background
+        fetchInitialData();
       }
 
       // 6. Replace thinking with real reply
@@ -335,107 +314,5 @@ class AppState extends ChangeNotifier {
     }
 
     notifyListeners();
-  }
-
-  /// Converts NLU output into a readable AI reply sentence.
-  String _buildReply(
-    String action,
-    String obj,
-    List<dynamic> entities,
-    String decisionType,
-    Map<String, dynamic> decision,
-  ) {
-    // If backend is not confident — ask user to rephrase
-    if (decisionType == 'REJECT') {
-      return "I didn't quite understand that. Could you rephrase?";
-    }
-
-    // If backend needs more info — show its clarifying questions
-    if (decisionType == 'CLARIFY') {
-      final questions = decision['questions'] as List<dynamic>? ?? [];
-      final q = questions.isNotEmpty ? questions.first as String : 'Could you give me more details?';
-      return q;
-    }
-
-    // Extract useful entities
-    final dateEntity = entities.firstWhere(
-      (e) => e['type'] == 'DATE' || e['type'] == 'TIME',
-      orElse: () => null,
-    );
-    final titleEntity = entities.firstWhere(
-      (e) => e['type'] == 'TITLE',
-      orElse: () => null,
-    );
-    final personEntity = entities.firstWhere(
-      (e) => e['type'] == 'PERSON',
-      orElse: () => null,
-    );
-
-    final timeStr    = dateEntity?['value']  as String? ?? '';
-    final title      = titleEntity?['value'] as String? ?? '';
-    final person     = personEntity?['value'] as String? ?? '';
-
-    // action = ADD | GET | UPDATE | DELETE
-    // obj    = TASK | MEETING | PROGRESS | NOTE
-    switch ('$action:$obj') {
-      case 'ADD:TASK':
-        return timeStr.isNotEmpty
-            ? "I've added the task [${title.isNotEmpty ? title : 'new task'}] due [$timeStr]."
-            : "I've added [${title.isNotEmpty ? title : 'new task'}] to your tasks.";
-
-      case 'ADD:MEETING':
-        return timeStr.isNotEmpty
-            ? "I've scheduled a [MEETING]${person.isNotEmpty ? ' with [$person]' : ''} on [$timeStr]."
-            : "I've added a [MEETING]${person.isNotEmpty ? ' with [$person]' : ''} to your calendar.";
-
-      case 'ADD:NOTE':
-        return "I've saved your [NOTE]${title.isNotEmpty ? ': [$title]' : ''}.";
-
-      case 'ADD:PROGRESS':
-        return "I've logged your [PROGRESS] update.";
-
-      case 'GET:TASK':
-        return timeStr.isNotEmpty
-            ? "Here are your [TASKS] for [$timeStr]."
-            : "Here are your [TASKS].";
-
-      case 'GET:MEETING':
-        return timeStr.isNotEmpty
-            ? "Here are your [MEETINGS] for [$timeStr]."
-            : "Here are your upcoming [MEETINGS].";
-
-      case 'GET:NOTE':
-        return "Here are your [NOTES]${title.isNotEmpty ? ' about [$title]' : ''}.";
-
-      case 'GET:PROGRESS':
-        return "Here is your [PROGRESS] summary.";
-
-      case 'UPDATE:TASK':
-        return "I've updated the [TASK]${title.isNotEmpty ? ' [$title]' : ''}.";
-
-      case 'UPDATE:MEETING':
-        return "I've updated your [MEETING]${timeStr.isNotEmpty ? ' to [$timeStr]' : ''}.";
-
-      case 'UPDATE:NOTE':
-        return "I've updated your [NOTE].";
-
-      case 'UPDATE:PROGRESS':
-        return "I've updated your [PROGRESS].";
-
-      case 'DELETE:TASK':
-        return "I've removed the [TASK]${title.isNotEmpty ? ' [$title]' : ''}.";
-
-      case 'DELETE:MEETING':
-        return "I've cancelled the [MEETING]${timeStr.isNotEmpty ? ' on [$timeStr]' : ''}.";
-
-      case 'DELETE:NOTE':
-        return "I've deleted your [NOTE].";
-
-      case 'DELETE:PROGRESS':
-        return "I've cleared that [PROGRESS] entry.";
-
-      default:
-        return "Got it. I've processed your [$obj] request.";
-    }
   }
 }

@@ -94,8 +94,8 @@ class CalendarScreen extends StatelessWidget {
         return _DeadlineCard(event: event);
       case EventType.research:
         return _ResearchCard(event: event);
-      default:
-        return _MeetingCard(event: event);
+      case EventType.task:
+        return _TaskCard(event: event);
     }
   }
 
@@ -260,6 +260,113 @@ class _AttendeeRow extends StatelessWidget {
   Color _avatarColor(int i) {
     const colors = [Color(0xFFB08060), Color(0xFF4A7A5A), Color(0xFF5A5A8A)];
     return colors[i % colors.length];
+  }
+}
+
+// ── Task Card ─────────────────────────────────────────────────────────────────
+
+class _TaskCard extends StatelessWidget {
+  final CalendarEvent event;
+  const _TaskCard({required this.event});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AlexandriaTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AlexandriaTheme.border),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            // Left green bar to distinguish from meetings
+            Container(
+              width: 4,
+              decoration: const BoxDecoration(
+                color: Color(0xFF4A7A5A),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  bottomLeft: Radius.circular(16),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SectionLabel(
+                      'TASK',
+                      icon: Icons.assignment_outlined,
+                      iconColor: const Color(0xFF4A7A5A),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      event.title,
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w700,
+                        color: AlexandriaTheme.onSurface,
+                      ),
+                    ),
+                    if (event.description != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        event.description!,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF555577),
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                    const Divider(height: 20, color: AlexandriaTheme.border),
+                    Row(
+                      children: [
+                        if (event.startTime != null) ...[
+                          const Icon(Icons.access_time,
+                              size: 13, color: AlexandriaTheme.subtle),
+                          const SizedBox(width: 5),
+                          Text(
+                            _fmtTime(event.startTime),
+                            style: GoogleFonts.inter(
+                                fontSize: 12, color: AlexandriaTheme.subtle),
+                          ),
+                        ],
+                        if (event.dueLabel != null) ...[
+                          const SizedBox(width: 14),
+                          const Icon(Icons.flag_outlined,
+                              size: 13, color: AlexandriaTheme.subtle),
+                          const SizedBox(width: 4),
+                          Text(
+                            event.dueLabel!,
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AlexandriaTheme.subtle,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _fmtTime(TimeOfDay? t) {
+    if (t == null) return '';
+    final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+    final m = t.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 }
 
