@@ -1,0 +1,185 @@
+{
+  "name": "My workflow 2",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "add-task",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "31b84b8d-be78-4b5c-9e05-107b0448e9da",
+      "name": "Webhook – Receive Task",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "add-task-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\n\nif (!body.taskName) throw new Error('taskName is required');\nif (!body.deadline) throw new Error('deadline is required');\nif (!body.email) throw new Error('email is required');\n\nconst deadline = new Date(body.deadline);\nif (isNaN(deadline)) throw new Error('Invalid deadline date');\n\nconst now = Date.now();\n\n// Subtract 6h for reminder\nconst reminderAt = new Date(deadline.getTime() - 6 * 60 * 60 * 1000);\nconst msUntilReminder = reminderAt.getTime() - now;\nconst reminderSeconds = msUntilReminder > 0 ? Math.floor(msUntilReminder / 1000) : 10;\nconst deadlineDate = deadline.toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    taskName: body.taskName,\n    description: body.description || '',\n    deadline: deadline.toISOString(),\n    deadlineDate: deadlineDate,\n    reminderAt: reminderAt.toISOString(),\n    reminderSeconds: reminderSeconds,\n    email: body.email,\nreminderSubject: '⏰ Reminder: \"' + body.taskName + '\" is due in 6 hours!',\nreminderBody: 'Hi,\\n\\nThis is a reminder that your task \"' + body.taskName + '\" is due in 6 hours (' + deadlineDate + ').\\n\\n' + (body.description ? 'Details: ' + body.description + '\\n\\n' : '') + 'Stay on track! ✅\\n\\n– Your n8n Task Assistant'\n  }\n}];"
+      },
+      "id": "cd32efa6-061e-4ddc-9871-c1da6d294f79",
+      "name": "Parse & Validate Task",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list",
+          "cachedResultName": "primary"
+        },
+        "start": "={{ $json.deadline }}",
+        "end": "={{ $json.deadline }}",
+        "additionalFields": {
+          "description": "={{ $json.description }}",
+          "summary": "={{ $json.taskName }}"
+        }
+      },
+      "id": "f39578eb-32b0-4817-8132-becab226867b",
+      "name": "Create Google Calendar Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        464,
+        0
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "4QgBwRIzO04J5O9A",
+          "name": "Google Calendar account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Parse & Validate Task').item.json.reminderSeconds }}",
+        "unit": "seconds"
+      },
+      "id": "4d63c68c-fb14-4f24-8b1b-5e1a52cabead",
+      "name": "Wait Until 1 Day Before Deadline",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        704,
+        0
+      ],
+      "webhookId": "wait-reminder-webhook"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Parse & Validate Task').item.json.email }}",
+        "subject": "={{ $('Parse & Validate Task').item.json.reminderSubject }}",
+        "emailType": "text",
+        "message": "={{ $('Parse & Validate Task').item.json.reminderBody }}",
+        "options": {}
+      },
+      "id": "e595b657-8214-48c0-988f-a95ced800f7c",
+      "name": "Send Reminder Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        944,
+        0
+      ],
+      "webhookId": "e72da560-f501-4621-9c6c-5afa75120a33",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "JWCH0xJsQby0CZJX",
+          "name": "Gmail account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Task added to Google Calendar. Reminder email will be sent 1 day before the deadline.\",\n  \"taskName\": \"{{ $('Parse & Validate Task').item.json.taskName }}\",\n  \"deadline\": \"{{ $('Parse & Validate Task').item.json.deadlineDate }}\",\n  \"calendarEventId\": \"{{ $('Create Google Calendar Event').item.json.id }}\",\n  \"reminderScheduledAt\": \"{{ $('Parse & Validate Task').item.json.reminderAt }}\",\n  \"notifyEmail\": \"{{ $('Parse & Validate Task').item.json.email }}\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "472d967e-6ed3-4a79-8bb6-bd141a69c9bd",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        704,
+        192
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook – Receive Task": {
+      "main": [
+        [
+          {
+            "node": "Parse & Validate Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Validate Task": {
+      "main": [
+        [
+          {
+            "node": "Create Google Calendar Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Google Calendar Event": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Wait Until 1 Day Before Deadline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Until 1 Day Before Deadline": {
+      "main": [
+        [
+          {
+            "node": "Send Reminder Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "b833a6ca-fb78-4e50-8035-5f6d97c20f6a",
+  "meta": {
+    "instanceId": "a2b54c4b72a365da46ffcff33f180249ced15992cf5da9473be093a59ef82db8"
+  },
+  "id": "plN3eRM3XXx4AZ0w",
+  "tags": []
+}
