@@ -2,12 +2,18 @@
 
 # Squire
 
-**A natural-language personal assistant that turns plain sentences into tasks, meetings, notes, and progress updates.**
+**From natural language to reliable execution — an AI-powered productivity assistant that transforms user requests into structured actions through intelligent language understanding, deterministic execution, and workflow automation.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.10-blue.svg)](backend/requirements.txt)
-[![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688.svg)](backend/main.py)
-[![Flutter](https://img.shields.io/badge/Flutter-Mobile%20Client-02569B.svg)](mobile_app/pubspec.yaml)
+[![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)](backend/requirements.txt)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&logoColor=white)](backend/main.py)
+[![Flutter](https://img.shields.io/badge/Flutter-Mobile-02569B?logo=flutter&logoColor=white)](mobile_app/pubspec.yaml)
+[![PyTorch](https://img.shields.io/badge/PyTorch-Deep%20Learning-EE4C2C?logo=pytorch&logoColor=white)](NLU/train.py)
+[![Hugging Face Transformers](https://img.shields.io/badge/Hugging%20Face-Transformers%20(NLU)-FFD21E?logo=huggingface&logoColor=black)](NLU/models/model.py)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?logo=postgresql&logoColor=white)](backend/database/schema/DDL.sql)
+[![Redis](https://img.shields.io/badge/Redis-Cache-DC382D?logo=redis&logoColor=white)](backend/database/redis_client.py)
+[![n8n](https://img.shields.io/badge/n8n-Workflow%20Automation-EA4B71?logo=n8n&logoColor=white)](automation)
+[![Docker](https://img.shields.io/badge/Docker-Containerization-2496ED?logo=docker&logoColor=white)](#)
 
 </div>
 
