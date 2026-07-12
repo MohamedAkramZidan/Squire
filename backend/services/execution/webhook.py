@@ -16,6 +16,8 @@ def trigger_webhook_async(endpoint: str, payload: Dict[str, Any]):
             response = requests.post(url, json=payload, timeout=30)
             response.raise_for_status()
             logger.info(f"Webhook triggered successfully: {url}")
+        except requests.exceptions.ReadTimeout:
+            pass # Ignore read timeouts since n8n still processes the request successfully
         except Exception as e:
             logger.error(f"Failed to trigger webhook {url}: {e}")
 

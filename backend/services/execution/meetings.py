@@ -15,7 +15,7 @@ from .helpers import (
     not_executed,
     clarify,
     ambiguous,
-    fallback_title,
+
     find_matches,
     generate_embedding,
     parse_date,
@@ -42,7 +42,7 @@ def execute_meeting(db: Session, action: str, fields: dict, user_id: int, proces
     return not_executed(f"unsupported action: {action}")
 
 def _add(db: Session, fields: dict, user_id: int, processed: dict) -> dict:
-    title = clean_title(fields.get("TITLE"), Meeting) or fallback_title(processed)
+    title = clean_title(fields.get("TITLE"), Meeting) or "Meeting"
 
     data = {
         "user_id": user_id,
