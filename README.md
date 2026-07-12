@@ -2,7 +2,7 @@
 
 # Squire
 
-**From natural language to reliable execution — an AI-powered productivity assistant that transforms user requests into structured actions through intelligent language understanding, deterministic execution, and workflow automation.**
+**From natural language to reliable execution — an AI-powered Mobile productivity assistant that transforms user requests into structured actions through intelligent language understanding, deterministic execution, and workflow automation.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)](backend/requirements.txt)
